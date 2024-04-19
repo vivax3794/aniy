@@ -7,8 +7,8 @@ pub trait Object: Send + Sync {
 #[derive(Clone)]
 pub struct Polygon {
     pub points: Vec<(f64, f64)>,
-    pub fill_color: Option<Color>,
-    pub outline_color: Option<Color>,
+    pub fill_color: Color,
+    pub outline_color: Color,
     pub stroke_width: f64,
 }
 
@@ -16,8 +16,8 @@ impl Default for Polygon {
     fn default() -> Self {
         Self {
             points: Vec::new(),
-            fill_color: None,
-            outline_color: None,
+            fill_color: Color::rgb(255, 255, 255),
+            outline_color: Color::rgb(100, 100, 100),
             stroke_width: 10.0,
         }
     }
@@ -46,12 +46,12 @@ impl Polygon {
     }
 
     pub fn fill(mut self, color: Color) -> Self {
-        self.fill_color = Some(color);
+        self.fill_color = color;
         self
     }
 
     pub fn outline(mut self, color: Color) -> Self {
-        self.outline_color = Some(color);
+        self.outline_color = color;
         self
     }
 }
@@ -71,13 +71,10 @@ impl Object for Polygon {
             )
             .set("stroke-width", self.stroke_width);
 
-        if let Some(color) = &self.fill_color {
-            polygon = polygon.set("fill", color.to_css().as_ref());
-        }
-
-        if let Some(color) = &self.outline_color {
-            polygon = polygon.set("stroke", color.to_css().as_ref());
-        }
+        polygon =
+            polygon.set("fill", self.fill_color.as_css().as_ref());
+        polygon = polygon
+            .set("stroke", self.outline_color.as_css().as_ref());
 
         Box::new(polygon)
     }

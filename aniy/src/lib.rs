@@ -7,38 +7,43 @@ pub mod animations;
 pub mod objects;
 
 #[derive(Clone, Copy)]
-pub enum Color {
-    Rgba(u8, u8, u8, u8),
-    Named(&'static str),
-}
+pub struct Color(pub u8, pub u8, pub u8, pub u8);
 
 impl Color {
     pub fn darken(&self, amount: f32) -> Self {
-        match self {
-            Self::Rgba(r, g, b, a) => {
-                let amount = amount.clamp(0.0, 1.0);
-                let r = (*r as f32 * amount) as u8;
-                let g = (*g as f32 * amount) as u8;
-                let b = (*b as f32 * amount) as u8;
-                Self::Rgba(r, g, b, *a)
-            }
-            Self::Named(_) => {
-                panic!("Named colors are not supported")
-            }
-        }
+        let amount = amount.clamp(0.0, 1.0);
+        let r = (self.0 as f32 * amount) as u8;
+        let g = (self.1 as f32 * amount) as u8;
+        let b = (self.2 as f32 * amount) as u8;
+        Self(r, g, b, self.3)
+    }
+
+    fn morph(&self, other: &Self, progress: f32) -> Self {
+        let r = (self.0 as f32
+            + (other.0 as f32 - self.0 as f32) * progress)
+            as u8;
+        let g = (self.1 as f32
+            + (other.1 as f32 - self.1 as f32) * progress)
+            as u8;
+        let b = (self.2 as f32
+            + (other.2 as f32 - self.2 as f32) * progress)
+            as u8;
+        let a = (self.3 as f32
+            + (other.3 as f32 - self.3 as f32) * progress)
+            as u8;
+        Self(r, g, b, a)
     }
 
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self::Rgba(r, g, b, 255)
+        Self(r, g, b, 255)
     }
 
-    fn to_css(&self) -> Cow<'static, str> {
-        match self {
-            Self::Rgba(r, g, b, a) => {
-                format!("rgba({}, {}, {}, {})", r, g, b, a).into()
-            }
-            Self::Named(name) => (*name).into(),
-        }
+    fn as_css(&self) -> Cow<'static, str> {
+        format!(
+            "rgba({}, {}, {}, {})",
+            self.0, self.1, self.2, self.3
+        )
+        .into()
     }
 }
 
@@ -79,7 +84,8 @@ impl Timeline {
             .map(|animated_object| animated_object.exit.end)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(0.0);
-        let frame_count = (end_time * fps as f32).ceil() as usize;
+        let frame_count =
+            (end_time * fps as f32).ceil() as usize + 10;
 
         log::info!(
             "Video will be {} frames ({:.2}s)",
