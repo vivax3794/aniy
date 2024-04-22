@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+indicatif = { version = "0.17.8", features = ["rayon"] }
 log = "0.4.21"
 ndarray = "0.15.6"
 open = "5.1.2"
