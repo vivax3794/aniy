@@ -12,6 +12,14 @@ use crate::{
 pub trait Animation: Send + Sync {
     /// Given a progress value between 0.0 and 1.0, returns the z-index and the SVG node.
     fn animate(&self, progress: f32) -> (isize, Box<dyn svg::Node>);
+
+    /// Create a new `AnimationContainer` with the given animation.
+    fn container(self) -> AnimationContainer
+    where
+        Self: Sized + 'static,
+    {
+        AnimationContainer::new(Arc::new(self))
+    }
 }
 
 /// A wrapper around a animation to provide duration, delay, and other features.
@@ -139,6 +147,10 @@ impl Animation for NoAnimation {
     fn animate(&self, _progress: f32) -> (isize, Box<dyn svg::Node>) {
         (0, Box::new(svg::node::element::Group::new()))
     }
+
+    fn container(self) -> AnimationContainer {
+        AnimationContainer::new(Arc::new(self)).duration(0.0)
+    }
 }
 
 /// An animation that reverses the given animation.
@@ -206,7 +218,7 @@ impl Animation for PolygonDraw {
         let y = start.1 + (end.1 - start.1) * segment_progress;
 
         points.push((x, y));
-        polygon.points = points.clone();
+        polygon.points.clone_from(&points);
         let outline_color = polygon.outline_color;
         polygon.outline_color = Color(0, 0, 0, 0);
         let (z, polygon_render) = polygon.render();
@@ -527,4 +539,43 @@ fn calculate_path_segements_from_text(
         });
     }
     string_segments
+}
+
+/// Fade in with a gradient from left to right.
+pub struct FadeGradient(isize, Box<dyn svg::Node>);
+
+impl FadeGradient {
+    /// Create a new `FadeGradient` from the given object.
+    pub fn new(gradient: Arc<dyn objects::Object>) -> Self {
+        let (z, node) = gradient.render();
+        Self(z, node)
+    }
+}
+
+impl Animation for FadeGradient {
+    fn animate(&self, progress: f32) -> (isize, Box<dyn svg::Node>) {
+        let node = self.1.clone();
+        let svg = node.to_string();
+
+        let svg = format!(
+            r#"
+            <linearGradient id="fadeGrad" y2="0" x2="1">
+                <stop offset="0" stop-color="white" stop-opacity="1"/>
+                <stop offset="{}" stop-color="white" stop-opacity="1"/>
+                <stop offset="{}" stop-color="white" stop-opacity="0"/>
+                <stop offset="1" stop-color="white" stop-opacity="0"/>
+            </linearGradient>
+
+            <mask id="fade" maskContentUnits="objectBoundingBox">
+              <rect width="1" height="1" fill="url(#fadeGrad)"/>
+            </mask>
+            <g mask="url(#fade)">{}</g>
+            "#,
+            progress,
+            progress + 0.1,
+            svg
+        );
+
+        (self.0, Box::new(svg::node::Blob::new(svg)))
+    }
 }

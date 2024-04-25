@@ -227,6 +227,17 @@ impl Text {
         self.y += y;
         self
     }
+
+    /// Gets the duration it would take to type out the text with a specific wpm.
+    pub fn wpm(&self, wpm: f32) -> f32 {
+        /// The average word length in characters.
+        /// Because ofc the typing speed will be constant, but it is given in words per minute.
+        ///
+        /// (wpm is really a bad way to measure typing speed, but it is what it is)
+        const AVG_WORD_LENGTH: f32 = 5.0;
+
+        self.text.len() as f32 / AVG_WORD_LENGTH / wpm * 60.0
+    }
 }
 
 impl Object for Text {
@@ -243,5 +254,107 @@ impl Object for Text {
             .set("text-anchor", self.anchor.as_str());
 
         (self.z_index, Box::new(text))
+    }
+}
+
+/// A raw SVG object.
+pub struct RawSvg(String);
+
+impl RawSvg {
+    /// Creates a new raw SVG object.
+    pub fn new(svg: impl Into<String>) -> Self {
+        Self(svg.into())
+    }
+}
+
+impl Object for RawSvg {
+    fn render(&self) -> (isize, Box<dyn svg::Node>) {
+        (0, Box::new(svg::node::Blob::new(&self.0)))
+    }
+}
+
+/// Render a math expression using mathjax.
+#[derive(Clone)]
+pub struct Math {
+    /// The math expression to render.
+    pub text: String,
+    /// The color of the math expression.
+    pub color: Color,
+    /// The size of the math expression.
+    pub size: f32,
+    /// The x position of the math expression.
+    pub x: f32,
+    /// The y position of the math expression.
+    pub y: f32,
+    /// The z-index of the math expression.
+    pub z_index: isize,
+}
+
+impl Math {
+    /// Creates a new math object.
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            color: Color::rgb(255, 255, 255),
+            size: 10.0,
+            x: 0.0,
+            y: 0.0,
+            z_index: 0,
+        }
+    }
+
+    /// Sets the position of the math expression.
+    pub fn at(mut self, x: f32, y: f32) -> Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+
+    /// Sets the size of the math expression.
+    pub fn size(mut self, size: f32) -> Self {
+        self.size = size;
+        self
+    }
+
+    /// Sets the color of the math expression.
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    /// Sets the z-index of the math expression.
+    pub fn z_index(mut self, z_index: isize) -> Self {
+        self.z_index = z_index;
+        self
+    }
+
+    /// Centers the math expression on a point.
+    pub fn center_on(mut self, x: f32, y: f32) -> Self {
+        let bounding_box = self.bounding_box();
+        self.x = x - bounding_box.width() / 2.0;
+        self.y = y - bounding_box.height() / 2.0;
+        self
+    }
+}
+
+impl Object for Math {
+    fn render(&self) -> (isize, Box<dyn svg::Node>) {
+        let renderer = mathjax::MathJax::new().unwrap();
+        let mut result = renderer.render(&self.text).unwrap();
+        result.set_color(self.color.as_css().as_ref());
+        let svg = result.into_raw();
+
+        let transform = format!(
+            "translate({}, {}) scale({})",
+            self.x, self.y, self.size
+        );
+        let svg = format!(
+            r#"
+            <g transform="{}">{}</g>
+            "#,
+            transform, svg
+        );
+
+        (self.z_index, Box::new(svg::node::Blob::new(svg)))
     }
 }

@@ -8,12 +8,15 @@
 
 #![warn(missing_docs, clippy::missing_docs_in_private_items)]
 
-use indicatif::ParallelProgressIterator;
-use indicatif::ProgressIterator;
+#[cfg(feature = "progress")]
+use indicatif::{ParallelProgressIterator, ProgressIterator};
+
 use rayon::prelude::*;
 use std::sync::Arc;
 
 use video_rs::Time;
+
+pub use svg;
 
 pub mod animations;
 pub mod objects;
@@ -265,10 +268,10 @@ impl Renderer {
 
         log::info!("Rendering frames");
         let frames_count = frames.len();
+        let frames = frames.into_par_iter();
+        #[cfg(feature = "progress")]
+        let frames = frames.progress_count(frames_count as u64);
         let frames = frames
-            // .into_iter()
-            .into_par_iter()
-            .progress_count(frames_count as u64)
             .panic_fuse()
             .map(|frame| {
                 let doc = self.render_frame(frame);
@@ -277,7 +280,10 @@ impl Renderer {
             .collect::<Vec<_>>();
 
         log::info!("Encoding frames");
-        for frame in frames.into_iter().progress() {
+        let frames = frames.into_iter();
+        #[cfg(feature = "progress")]
+        let frames = frames.progress();
+        for frame in frames {
             encoder.encode(&frame, &video_position).unwrap();
             video_position =
                 video_position.aligned_with(&frame_duration).add();
