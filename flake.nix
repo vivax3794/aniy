@@ -1,5 +1,5 @@
 {
-  description = "From Scratch";
+  description = "Animation library in rust.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,15 +22,12 @@
                 ( rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
                     extensions = ["rust-src" "llvm-tools-preview" "rust-analyzer"];
                 }) )
-                cargo-flamegraph
                 just
+                cargo-nextest
 
                 ffmpeg
                 pkg-config
 
-                # llvmPackages.libclang
-                # llvmPackages.libcxxClang
-                # clang
             ];
 
             LIBCLANG_PATH="${llvmPackages.libclang.lib}/lib";

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Rust animation library built on top of svg"
 license = "MIT"
+readme = "../README.md"
 
 [dependencies]
 indicatif = { version = "0.17.8", features = ["rayon"], optional = true }
