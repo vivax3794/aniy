@@ -5,6 +5,7 @@ edition = "2021"
 description = "Rust animation library built on top of svg"
 license = "MIT"
 readme = "../README.md"
+repo = "https://github.com/vivax3794/aniy"
 
 [dependencies]
 indicatif = { version = "0.17.8", features = ["rayon"], optional = true }

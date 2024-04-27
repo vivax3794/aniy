@@ -3,6 +3,8 @@
 
 use std::sync::Arc;
 
+use svg::Node;
+
 use crate::{
     objects::{self, Object},
     Color,
@@ -136,6 +138,14 @@ impl AnimatedObject {
         self.exit = self.exit.duration(exit_duration);
         self
     }
+
+    /// Move the entry and exit animations so the enter is after the exit of the specified object.
+    /// Keeps durations and lifetimes
+    pub fn after(mut self, other: &AnimatedObject) -> Self {
+        let current_lifetime = self.exit.start - self.enter.end;
+        self.enter = self.enter.after(&other.exit);
+        self.lifetime(current_lifetime)
+    }
 }
 
 /// An animation that does nothing.
@@ -173,7 +183,7 @@ pub struct FadeAnimation(isize, Box<dyn svg::Node>);
 impl FadeAnimation {
     /// Create a new `FadeAnimation` from the given object.
     /// By pre-rendering the object.
-    pub fn new(object: Arc<dyn Object>) -> Self {
+    pub fn new(object: &impl Object) -> Self {
         let (z, node) = object.render();
         Self(z, node)
     }
@@ -546,7 +556,7 @@ pub struct FadeGradient(isize, Box<dyn svg::Node>);
 
 impl FadeGradient {
     /// Create a new `FadeGradient` from the given object.
-    pub fn new(gradient: Arc<dyn objects::Object>) -> Self {
+    pub fn new(gradient: &impl objects::Object) -> Self {
         let (z, node) = gradient.render();
         Self(z, node)
     }
@@ -578,4 +588,154 @@ impl Animation for FadeGradient {
 
         (self.0, Box::new(svg::node::Blob::new(svg)))
     }
+}
+
+/// Animate any svg element by basically constructing it slowly
+pub struct SvgTyper {
+    /// The amount of nodes we care about in the animation
+    total_nodes: usize,
+    /// The source of svg
+    svg_source: String,
+    /// The z index
+    z: isize,
+}
+
+impl SvgTyper {
+    /// Constructs a new `SvgTyper` instance with the given `Object`.
+    ///
+    /// # Arguments
+    ///
+    /// * `object` - A reference to an object that can be rendered into an SVG string.
+    ///
+    /// # Returns
+    ///
+    /// A new `SvgTyper` instance initialized with the provided `Object` and its corresponding SVG string.
+    pub fn new(object: &impl Object) -> Self {
+        let (z, obj) = object.render();
+        let obj = obj.to_string();
+
+        let total_nodes = count_important_nodes(&obj);
+
+        Self {
+            total_nodes,
+            svg_source: obj,
+            z,
+        }
+    }
+}
+
+impl Animation for SvgTyper {
+    fn animate(&self, progress: f32) -> (isize, Box<dyn svg::Node>) {
+        let nodes =
+            (self.total_nodes as f32 * progress).floor() as usize;
+        let segment_progress =
+            progress * self.total_nodes as f32 - nodes as f32;
+        let node =
+            slice_events(&self.svg_source, nodes, segment_progress);
+
+        (self.z, node)
+    }
+}
+
+/// Recursivly count the amount of non Group nodes
+fn count_important_nodes(svg: &str) -> usize {
+    let events = svg::read(svg).unwrap();
+
+    let mut defs = false;
+    events
+        .filter(|event| {
+            if let svg::parser::Event::Tag("defs", type_, _) = event {
+                defs = type_ == &svg::node::element::tag::Type::Start;
+            }
+
+            if defs {
+                return false;
+            }
+
+            match event {
+                svg::parser::Event::Tag(
+                    tag,
+                    svg::node::element::tag::Type::Start,
+                    _,
+                ) if tag != &"g" => true,
+                svg::parser::Event::Tag(
+                    _,
+                    svg::node::element::tag::Type::Empty,
+                    _,
+                ) => true,
+                _ => false,
+            }
+        })
+        .count()
+}
+
+/// Recursivly create a group from the input group with up to the specified.
+fn slice_events(
+    source_svg: &str,
+    mut amount: usize,
+    opacity_of_last: f32,
+) -> Box<dyn svg::Node> {
+    let events = svg::read(source_svg).unwrap();
+
+    let mut top_node: svg::node::element::Element =
+        svg::node::element::Group::new().into();
+    let mut stack = vec![];
+    let mut defs = false;
+
+    for event in events {
+        match event {
+            svg::parser::Event::Tag(tag, type_, attrs) => match type_
+            {
+                svg::node::element::tag::Type::Empty => {
+                    let mut node =
+                        svg::node::element::Element::new(tag);
+                    *node.get_attributes_mut() = attrs;
+                    top_node.append(node);
+
+                    if !defs {
+                        amount -= 1;
+                    }
+                }
+                svg::node::element::tag::Type::End => {
+                    let just_closed = top_node;
+                    top_node = stack.pop().unwrap();
+                    top_node.append(just_closed);
+
+                    if tag == "defs" {
+                        defs = false;
+                    }
+                }
+                svg::node::element::tag::Type::Start => {
+                    let mut node =
+                        svg::node::element::Element::new(tag);
+                    *node.get_attributes_mut() = attrs;
+
+                    stack.push(top_node);
+                    top_node = node;
+
+                    if tag == "defs" {
+                        defs = true;
+                    } else if !defs && tag != "g" {
+                        amount -= 1;
+                    }
+                }
+            },
+            svg::parser::Event::Text(text) => {
+                top_node.append(svg::node::Text::new(text))
+            }
+            _ => log::warn!("Unknown svg element."),
+        }
+
+        if amount == 0 {
+            top_node.assign("opacity", opacity_of_last);
+            break;
+        }
+    }
+
+    for mut node in stack.into_iter().rev() {
+        node.append(top_node);
+        top_node = node;
+    }
+
+    Box::new(top_node)
 }

@@ -301,6 +301,7 @@ impl Math {
             y: 0.0,
             z_index: 0,
         }
+        .center_on(0.0, 0.0)
     }
 
     /// Sets the position of the math expression.

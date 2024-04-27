@@ -20,101 +20,39 @@ fn main() {
 
     let timeline = app.timeline();
 
-    let square = Arc::new(
-        objects::Polygon::new(vec![
-            (0.0, 0.0),
-            (SHAPE_SCALE, 0.0),
-            (SHAPE_SCALE, SHAPE_SCALE),
-            (0.0, SHAPE_SCALE),
-        ])
-        .shift(-SHAPE_SCALE / 2.0, -SHAPE_SCALE / 2.0)
-        .fill(RED)
-        .outline(RED.darken(0.5)),
-    );
-    let mut square_anim = animations::AnimatedObject {
-        object: square.clone(),
-        enter: animations::FadeAnimation::new(square.clone())
-            .container()
-            .duration(2.0),
-        exit: animations::NoAnimation.container(),
-    };
-
-    let triangle = Arc::new(
-        objects::Polygon::new(vec![
-            (0.0, 0.0),
-            (SHAPE_SCALE, 0.0),
-            (SHAPE_SCALE / 2.0, SHAPE_SCALE),
-        ])
-        .shift(-SHAPE_SCALE / 2.0, -SHAPE_SCALE / 2.0)
-        .fill(BLUE)
-        .outline(BLUE.darken(0.5)),
-    );
-    let mut triangle_anim = animations::AnimatedObject {
-        object: triangle.clone(),
-        enter: animations::PolygonMorph::new(
-            square.clone(),
-            triangle.clone(),
+    let text = Arc::new(
+        objects::Math::new(
+            r"
+\mathbf{A} = \begin{bmatrix}
+a_{11} & a_{12} & \cdots & a_{1n} \\
+a_{21} & a_{22} & \cdots & a_{2n} \\
+\vdots  & \vdots         & \ddots & \vdots  \\
+a_{m1} & a_{m2} & \cdots & a_{mn}
+\end{bmatrix}, \quad
+\mathbf{B} = \begin{bmatrix}
+b_{11} & b_{12} & \cdots & b_{1n} \\
+b_{21} & b_{22} & \cdots & b_{2n} \\
+\vdots  & \vdots         & \ddots & \vdots  \\
+b_{m1} & b_{m2} & \cdots & b_{mn}
+\end{bmatrix}
+            ",
         )
-        .container(),
-        exit: animations::FadeAnimation::new(triangle.clone())
-            .container()
-            .duration(2.0)
-            .reverse(),
-    };
-
-    let square_text = Arc::new(
-        objects::Text::new("Square")
-            .size(50.0)
-            .anchor("middle")
-            .at(0.0, -SHAPE_SCALE / 2.0 - 50.0),
+        .size(5.0)
+        .center_on(0.0, 0.0),
     );
-    let triangle_text = Arc::new(
-        objects::Text::new("Triangle")
-            .size(50.0)
-            .anchor("middle")
-            .at(0.0, -SHAPE_SCALE / 2.0 - 50.0),
-    );
-
-    let mut square_text_anim = animations::AnimatedObject {
-        object: square_text.clone(),
-        enter: animations::TextWrite::new(&square_text).container(),
-        exit: animations::TextType(square_text.clone())
+    let text_anim = animations::AnimatedObject {
+        object: text.clone(),
+        enter: animations::SvgTyper::new(text.as_ref())
             .container()
-            .duration(square_text.wpm(140.0))
-            .reverse(),
-    };
-    let mut triangle_text_anim = animations::AnimatedObject {
-        object: triangle_text.clone(),
-        enter: animations::TextType(triangle_text.clone())
+            .duration(5.0),
+        exit: animations::FadeGradient::new(text.as_ref())
             .container()
-            .duration(triangle_text.wpm(140.0)),
-        exit: animations::TextWrite::new(&triangle_text)
-            .container()
-            .reverse(),
-    };
+            .reverse()
+            .duration(1.0),
+    }
+    .lifetime(1.0);
 
-    square_anim = square_anim.lifetime(1.0);
-    square_text_anim.enter =
-        square_text_anim.enter.synchronize(&square_anim.enter);
-    square_text_anim.exit =
-        square_text_anim.exit.after(&square_anim.exit);
-
-    triangle_text_anim.enter =
-        triangle_text_anim.enter.after(&square_text_anim.exit);
-
-    triangle_anim.enter = triangle_anim
-        .enter
-        .start_with(&square_text_anim.exit)
-        .end_with(&triangle_text_anim.enter);
-    triangle_anim = triangle_anim.lifetime(1.0);
-
-    triangle_text_anim.exit =
-        triangle_text_anim.exit.synchronize(&triangle_anim.exit);
-
-    timeline.add_animation(square_anim);
-    timeline.add_animation(triangle_anim);
-    timeline.add_animation(square_text_anim);
-    timeline.add_animation(triangle_text_anim);
+    timeline.add_animation(text_anim);
 
     app.render();
 }
